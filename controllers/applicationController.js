@@ -6,6 +6,7 @@ const PDFDocument = require("pdfkit");
 // ✅ ALWAYS absolute path
 const signatureImagePath = path.resolve(__dirname, "../assets/sign.png");
 const stampImagePath = path.resolve(__dirname, "../assets/stamp.png");
+const logo_mywebsite = path.resolve(__dirname, "../assets/logo.jpeg");
 
 // 🔍 Debug log (ek baar check kar lena)
 console.log("Signature exists:", fs.existsSync(signatureImagePath));
@@ -66,9 +67,9 @@ exports.applyCertificate = async (req, res) => {
 
     // Validation
     if (!fullName || !email || !phone || !course || !certificateType || !duration || !durationUnit) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Please fill all required fields" 
+      return res.status(400).json({
+        success: false,
+        message: "Please fill all required fields"
       });
     }
 
@@ -154,16 +155,16 @@ exports.applyCertificate = async (req, res) => {
 
     await sendMail(process.env.SMTP_USERNAME, `New Application: ${appId} - ${fullName}`, adminHtml);
 
-    return res.status(201).json({ 
-      success: true, 
+    return res.status(201).json({
+      success: true,
       appId,
       message: "Application submitted successfully!"
     });
   } catch (err) {
     console.error("applyCertificate error:", err);
-    return res.status(500).json({ 
-      success: false, 
-      error: "Server error. Please try again." 
+    return res.status(500).json({
+      success: false,
+      error: "Server error. Please try again."
     });
   }
 };
@@ -172,9 +173,9 @@ exports.applyCertificate = async (req, res) => {
 exports.adminVerify = async (req, res) => {
   try {
     const { appId } = req.params;
-    
+
     const app = await Application.findOne({ appId });
-    
+
     if (!app) {
       return res.status(404).send(`
         <div style="text-align: center; padding: 50px;">
@@ -196,7 +197,7 @@ exports.adminVerify = async (req, res) => {
       fs.mkdirSync(certsDir, { recursive: true });
     }
     const filePath = path.join(certsDir, `${appId}.pdf`);
-    
+
     // Choose certificate type based on certificateType field
     if (app.certificateType === 'CERTIFICATE_OF_COMPLETION') {
       await generateCompletionCertificatePDF(app, filePath);
@@ -280,16 +281,16 @@ exports.verifyById = async (req, res) => {
   try {
     const { appId } = req.params;
     const app = await Application.findOne({ appId });
-    
+
     if (!app) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Invalid Application ID" 
+      return res.status(404).json({
+        success: false,
+        message: "Invalid Application ID"
       });
     }
 
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       status: app.status,
       applicationId: app.appId,
       name: app.fullName,
@@ -306,9 +307,9 @@ exports.verifyById = async (req, res) => {
     });
   } catch (err) {
     console.error("verifyById error:", err);
-    return res.status(500).json({ 
-      success: false, 
-      error: "Server error" 
+    return res.status(500).json({
+      success: false,
+      error: "Server error"
     });
   }
 };
@@ -318,11 +319,11 @@ exports.downloadCertificate = async (req, res) => {
   try {
     const { appId } = req.params;
     const app = await Application.findOne({ appId });
-    
+
     if (!app) {
       return res.status(404).send("Certificate not found");
     }
-    
+
     if (app.status !== "VERIFIED") {
       return res.status(403).send(`
         <div style="text-align: center; padding: 50px;">
@@ -335,7 +336,7 @@ exports.downloadCertificate = async (req, res) => {
     }
 
     const filePath = path.join(__dirname, `../certificates/${appId}.pdf`);
-    
+
     if (!fs.existsSync(filePath)) {
       // Generate based on certificate type
       if (app.certificateType === 'CERTIFICATE_OF_COMPLETION') {
@@ -349,7 +350,7 @@ exports.downloadCertificate = async (req, res) => {
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="RID_${app.certificateType === 'CERTIFICATE_OF_COMPLETION' ? 'Certificate' : 'ExperienceLetter'}_${appId}.pdf"`);
-    
+
     const fileStream = fs.createReadStream(filePath);
     fileStream.pipe(res);
   } catch (err) {
@@ -362,13 +363,25 @@ exports.downloadCertificate = async (req, res) => {
 async function generateCompletionCertificatePDF(app, filePath) {
   return new Promise((resolve, reject) => {
     try {
-      const doc = new PDFDocument({ 
-        size: "A4", 
+      const doc = new PDFDocument({
+        size: "A4",
         margin: 40
       });
-      
+
       const stream = fs.createWriteStream(filePath);
       doc.pipe(stream);
+
+      // ================= PATHS =================
+      const logo_mywebsite = path.resolve(__dirname, "../assets/logo.jpeg");
+      const signatureImagePath = path.resolve(__dirname, "../assets/sign.png");
+      const stampImagePath = path.resolve(__dirname, "../assets/Stamp.png");
+
+      // ================= PAGE SAFE AREA =================
+      const pageWidth = doc.page.width;
+      const pageHeight = doc.page.height;
+      const safeLeft = 60;
+      const safeRight = pageWidth - 60;
+      const usableWidth = safeRight - safeLeft;
 
       // ================= COLORS =================
       const primaryColor = '#000000';
@@ -379,11 +392,24 @@ async function generateCompletionCertificatePDF(app, filePath) {
       // ================= BORDERS =================
       doc.lineWidth(2);
       doc.strokeColor('#16a34a');
-      doc.rect(30, 30, doc.page.width - 60, doc.page.height - 60).stroke();
+      doc.rect(30, 30, pageWidth - 60, pageHeight - 60).stroke();
 
       doc.lineWidth(1);
       doc.strokeColor('#cccccc');
-      doc.rect(35, 35, doc.page.width - 70, doc.page.height - 70).stroke();
+      doc.rect(35, 35, pageWidth - 70, pageHeight - 70).stroke();
+
+      // ================= WATERMARK =================
+      if (fs.existsSync(logo_mywebsite)) {
+        doc.save();
+        doc.opacity(0.08);
+        doc.image(
+          logo_mywebsite,
+          (pageWidth - 300) / 2,
+          (pageHeight - 300) / 2,
+          { width: 300 }
+        );
+        doc.restore();
+      }
 
       // ================= DURATION =================
       const durationValue = app.duration || "0";
@@ -393,14 +419,14 @@ async function generateCompletionCertificatePDF(app, filePath) {
 
       // ================= HEADER =================
       doc.fillColor(secondaryColor).fontSize(10)
-        .text('Registration Number: 048884', 50, 60);
+        .text('Registration Number: 048884', safeLeft, 60);
 
       doc.text('Website: www.ridbharat.com', 0, 60, { align: 'right' });
 
       doc.fillColor(accentColor).fontSize(22).font('Helvetica-Bold')
         .text('Research, Innovation & Discovery Bharat', 0, 90, { align: 'center' });
 
-      doc.fontSize(14).font('Helvetica')
+      doc.fontSize(14)
         .text('RID Organization, Provides Solutions for Every Problem', 0, 115, { align: 'center' });
 
       doc.fillColor(secondaryColor).fontSize(10)
@@ -409,18 +435,23 @@ async function generateCompletionCertificatePDF(app, filePath) {
       doc.text('An ISO 9001:2015 Certified Organization', 0, 155, { align: 'center' });
 
       doc.strokeColor('#cccccc').lineWidth(1)
-        .moveTo(50, 170)
-        .lineTo(doc.page.width - 50, 170)
+        .moveTo(safeLeft, 170)
+        .lineTo(pageWidth - safeLeft, 170)
         .stroke();
 
       const issueDate = formatDate(new Date());
       doc.fillColor(primaryColor).fontSize(11)
-        .text(`Issue Date: ${issueDate}`, 50, 190);
+        .text(`Issue Date: ${issueDate}`, safeLeft, 190);
 
       doc.text(`Certificate Number: ${app.appId}`, 0, 190, { align: 'right' });
 
       doc.fillColor(certificateColor).fontSize(11).font('Helvetica-Bold')
-        .text(`Duration: ${durationValue} ${durationUnit} (${startDate} to ${endDate})`, 0, 210, { align: 'center' });
+        .text(
+          `Duration: ${durationValue} ${durationUnit} (${startDate} to ${endDate})`,
+          0,
+          210,
+          { align: 'center' }
+        );
 
       // ================= TITLE =================
       doc.fontSize(28).font('Helvetica-Bold')
@@ -436,8 +467,20 @@ async function generateCompletionCertificatePDF(app, filePath) {
       doc.fillColor(primaryColor).fontSize(14)
         .text(`Son/Daughter of ${app.fatherName}`, 0, 350, { align: 'center' });
 
-      doc.text(`has successfully completed the ${app.course} course`, 0, 390, { align: 'center' });
-      doc.text(`with project "${app.projectName}"`, 0, 410, { align: 'center' });
+      // 🔧 INSIDE BORDER FIX
+      doc.text(
+        `has successfully completed the ${app.course} course`,
+        safeLeft,
+        390,
+        { width: usableWidth, align: 'center' }
+      );
+
+      doc.text(
+        `with project "${app.projectName}"`,
+        safeLeft,
+        410,
+        { width: usableWidth, align: 'center' }
+      );
 
       doc.text(
         `Duration: ${durationValue} ${durationUnit} (${startDate} to ${endDate})`,
@@ -449,32 +492,25 @@ async function generateCompletionCertificatePDF(app, filePath) {
       doc.fontSize(12)
         .text(
           'has demonstrated dedication, hard work and excellence throughout the course.',
-          50,
+          safeLeft,
           480,
-          { width: doc.page.width - 100 }
+          { width: usableWidth, align: 'center' }
         );
 
       doc.text(
         'This certificate is awarded in recognition of successful completion of the training program.',
-        50,
+        safeLeft,
         500,
-        { width: doc.page.width - 100 }
-        );
+        { width: usableWidth, align: 'center' }
+      );
 
-      // ================= SIGNATURE SECTION =================
-      const signatureY = 560;
+      // ================= SIGNATURE =================
+      const signatureY = 600;
+      const names = ["Er. Rajesh Prasad", "Er. Deepak Kumar"];
+      const randomName = names[Math.floor(Math.random() * names.length)];
 
-      const randomNames = [
-        "Er. Rajesh Prasad",
-        "Er. Deepak Kumar"
-      ];
-      const randomName = randomNames[Math.floor(Math.random() * randomNames.length)];
-
-      // ✅ SIGNATURE IMAGE
       if (fs.existsSync(signatureImagePath)) {
-        doc.image(signatureImagePath, 100, signatureY - 45, {
-          width: 120
-        });
+        doc.image(signatureImagePath, 100, signatureY - 40, { width: 120 });
       }
 
       doc.fillColor(primaryColor).fontSize(12)
@@ -483,76 +519,77 @@ async function generateCompletionCertificatePDF(app, filePath) {
       doc.fontSize(14).font('Helvetica-Bold')
         .text(randomName, 100, signatureY + 40);
 
-      doc.fontSize(12).font('Helvetica')
+      doc.fontSize(12)
         .text('CEO & Director', 100, signatureY + 60);
 
       doc.text('RID Bharat, Bhopal', 100, signatureY + 75);
 
-      // Signature line
       doc.strokeColor('#000').lineWidth(1)
         .moveTo(100, signatureY + 30)
         .lineTo(300, signatureY + 30)
         .stroke();
 
-      // ✅ STAMP IMAGE
       if (fs.existsSync(stampImagePath)) {
-        doc.image(
-          stampImagePath,
-          doc.page.width - 190,
-          signatureY - 25,
-          { width: 100 }
-        );
+        doc.image(stampImagePath, pageWidth - 190, signatureY - 10, { width: 100 });
       }
 
       doc.fillColor(secondaryColor).fontSize(10)
-        .text('Official Stamp & Seal', doc.page.width - 200, signatureY + 80, {
+        .text('Official Stamp & Seal', pageWidth - 200, signatureY + 80, {
           width: 150,
           align: 'center'
         });
 
-      // ================= FOOTER =================
+      // ================= FOOTER (100% FIXED) =================
+      const FOOTER_Y = pageHeight - 120;
+
       doc.strokeColor('#cccccc').lineWidth(0.5)
-        .moveTo(50, doc.page.height - 80)
-        .lineTo(doc.page.width - 50, doc.page.height - 80)
+        .moveTo(safeLeft, FOOTER_Y)
+        .lineTo(pageWidth - safeLeft, FOOTER_Y)
         .stroke();
 
       doc.fillColor(accentColor).fontSize(10).font('Helvetica-Bold')
-        .text('Digitally Signed & Verified', 0, doc.page.height - 70, { align: 'center' });
+        .text(
+          'Digitally Signed & Verified',
+          safeLeft,
+          FOOTER_Y + 10,
+          { width: usableWidth, align: 'center', lineBreak: false }
+        );
 
       doc.text(
         'Research, Innovation & Discovery Bharat (RID Bharat)',
-        0,
-        doc.page.height - 55,
-        { align: 'center' }
+        safeLeft,
+        FOOTER_Y + 25,
+        { width: usableWidth, align: 'center', lineBreak: false }
       );
 
       doc.fillColor(certificateColor).fontSize(9)
         .text(
           `Verify this certificate at: rid-bharat.org/verify | Certificate ID: ${app.appId}`,
-          0,
-          doc.page.height - 40,
-          { align: 'center' }
+          safeLeft,
+          FOOTER_Y + 40,
+          { width: usableWidth, align: 'center', lineBreak: false }
         );
 
       doc.fillColor(secondaryColor).fontSize(8)
         .text(
           'Office Address: MiG–72, Sector A, Rajeev Nagar, Ayodhya Nagar, Bhopal, Madhya Pradesh 462021 (India)',
-          0,
-          doc.page.height - 25,
-          { align: 'center' }
+          safeLeft,
+          FOOTER_Y + 55,
+          { width: usableWidth, align: 'center', lineBreak: false }
         );
 
       doc.text(
-        'Contact: +91 98927 82728 | Email: supportid@gamil.com',
-        0,
-        doc.page.height - 15,
-        { align: 'center' }
+        'Contact: +91 98927 82728 | Email: supportid@gmail.com',
+        safeLeft,
+        FOOTER_Y + 70,
+        { width: usableWidth, align: 'center', lineBreak: false }
       );
 
       doc.end();
 
       stream.on("finish", () => resolve(true));
       stream.on("error", reject);
+
     } catch (err) {
       reject(err);
     }
@@ -560,199 +597,169 @@ async function generateCompletionCertificatePDF(app, filePath) {
 }
 
 
+
+
 // Generate Experience Letter PDF - User entered duration as is
 async function generateExperienceLetterPDF(app, filePath) {
   return new Promise((resolve, reject) => {
     try {
-      const doc = new PDFDocument({
-        size: "A4",
-        margin: 40
-      });
-
+      const doc = new PDFDocument({ size: "A4", margin: 40 });
       const stream = fs.createWriteStream(filePath);
       doc.pipe(stream);
 
+      // ================= PATHS =================
+      const signatureImagePath = path.resolve(__dirname, "../assets/sign.png");
+      const stampImagePath = path.resolve(__dirname, "../assets/Stamp.png");
+
+      // ================= PAGE SETUP =================
+      const pageWidth = doc.page.width;
+      const pageHeight = doc.page.height;
+      const safeLeft = 60;
+      const safeRight = pageWidth - 60;
+      const usableWidth = safeRight - safeLeft;
+
       // ================= COLORS =================
-      const primaryColor = '#000000';
-      const secondaryColor = '#666666';
-      const accentColor = '#2c3e50';
+      const primaryColor = "#000000";
+      const secondaryColor = "#666666";
+      const accentColor = "#2c3e50";
 
-      // ================= BORDERS =================
-      doc.lineWidth(2);
-      doc.strokeColor('#16a34a');
-      doc.rect(30, 30, doc.page.width - 60, doc.page.height - 60).stroke();
+      // ================= BORDER =================
+      doc.lineWidth(2).strokeColor("#16a34a")
+        .rect(30, 30, pageWidth - 60, pageHeight - 60).stroke();
+      doc.lineWidth(1).strokeColor("#cccccc")
+        .rect(35, 35, pageWidth - 70, pageHeight - 70).stroke();
 
-      doc.lineWidth(1);
-      doc.strokeColor('#cccccc');
-      doc.rect(35, 35, doc.page.width - 70, doc.page.height - 70).stroke();
-
-      // ================= DURATION =================
+      // ================= DATES =================
       const durationValue = app.duration || "0";
       const durationUnit = app.durationUnit || "months";
       const startDate = formatDate(app.startDate);
       const endDate = formatDate(app.endDate);
+      const issueDate = formatDate(new Date());
 
       // ================= HEADER =================
       doc.fillColor(secondaryColor).fontSize(10)
-        .text('Registration Number: 048884', 50, 60);
+        .text("Registration Number: 048884", safeLeft, 60);
+      doc.text("Website: www.ridbharat.com", 0, 60, { align: "right" });
 
-      doc.text('Website: www.ridbharat.com', 0, 60, { align: 'right' });
+      doc.fillColor(accentColor).fontSize(22).font("Helvetica-Bold")
+        .text("Research, Innovation & Discovery Bharat", 0, 90, { align: "center" });
 
-      doc.fillColor(accentColor).fontSize(22).font('Helvetica-Bold')
-        .text('Research, Innovation & Discovery Bharat', 0, 90, { align: 'center' });
+      doc.fontSize(14)
+        .text("RID Organization, Provides Solutions for Every Problem", 0, 115, { align: "center" });
 
-      doc.fontSize(14).font('Helvetica')
-        .text('RID Organization, Provides Solutions for Every Problem', 0, 115, { align: 'center' });
+      doc.fontSize(10).fillColor(secondaryColor)
+        .text("Managed & Run by TWKSAA Welfare Foundation, Certified by Central Government", 0, 140, { align: "center" });
 
-      doc.fillColor(secondaryColor).fontSize(10)
-        .text('Managed & Run by TWKSAA Welfare Foundation, Certified by Central Government', 0, 140, { align: 'center' });
+      doc.text("An ISO 9001:2015 Certified Organization", 0, 155, { align: "center" });
 
-      doc.text('An ISO 9001:2015 Certified Organization', 0, 155, { align: 'center' });
+      doc.moveTo(safeLeft, 170).lineTo(safeRight, 170).stroke();
 
-      doc.strokeColor('#cccccc').lineWidth(1)
-        .moveTo(50, 170)
-        .lineTo(doc.page.width - 50, 170)
-        .stroke();
-
-      const issueDate = formatDate(new Date());
       doc.fillColor(primaryColor).fontSize(11)
-        .text(`Issue Date: ${issueDate}`, 50, 190);
+        .text(`Issue Date: ${issueDate}`, safeLeft, 190);
+      doc.text(`IEL Number: ${app.appId}`, 0, 190, { align: "right" });
 
-      doc.text(`IEL Number: ${app.appId}`, 0, 190, { align: 'right' });
-
-      doc.fillColor(accentColor).fontSize(11).font('Helvetica-Bold')
-        .text(`Duration: ${durationValue} ${durationUnit} (${startDate} to ${endDate})`, 0, 210, { align: 'center' });
+      doc.fillColor(accentColor).font("Helvetica-Bold")
+        .text(
+          `Internship Duration: ${durationValue} ${durationUnit} (${startDate} to ${endDate})`,
+          0,
+          210,
+          { align: "center" }
+        );
 
       // ================= TITLE =================
-      doc.fillColor(accentColor).fontSize(28).font('Helvetica-Bold')
-        .text('Internship Experience Letter', 0, 240, { align: 'center' });
+      doc.fontSize(26).font("Helvetica-Bold")
+        .text("INTERNSHIP EXPERIENCE LETTER", 0, 245, { align: "center" });
 
       // ================= BODY =================
-      doc.fillColor(primaryColor).fontSize(12)
-        .text('To,', 50, 300);
-
-      doc.text(`${app.fullName},`, 80, 320);
-      doc.text(`S/O ${app.fatherName},`, 80, 340);
-      doc.text('Bhopal, Madhya Pradesh', 80, 360);
-
-      doc.fillColor(accentColor).fontSize(12).font('Helvetica-Bold')
-        .text('Subject: Experience Letter of Internship Completion at RID Bharat.', 50, 400);
-
-      doc.fillColor(primaryColor).fontSize(12)
+      doc.fontSize(12).fillColor(primaryColor)
         .text(
-          `This is to certify that ${app.fullName} has completed his/her ${durationValue} ${durationUnit} internship with us, from ${startDate} to ${endDate}.`,
-          50,
-          440,
-          { width: doc.page.width - 100 }
+          `To: ${app.fullName}, S/O ${app.fatherName}, Bhopal, Madhya Pradesh`,
+          safeLeft,
+          300,
+          { width: usableWidth, align: "center" }
         );
 
       doc.text(
-        `As part of his/her internship, he/she has worked on "${app.projectName}" in RID Bharat Project.`,
-        50,
-        480,
-        { width: doc.page.width - 100 }
+        `This is to certify that ${app.fullName} has successfully completed an internship with Research, Innovation & Discovery Bharat (RID Bharat) from ${startDate} to ${endDate}.`,
+        safeLeft,
+        340,
+        { width: usableWidth, align: "center" }
+      );
+
+      // ✅ ONE LINE GAP AFTER END DATE
+      doc.moveDown(1);
+
+      doc.text(
+        `During the internship tenure, ${app.fullName} was actively involved in the project titled "${app.projectName}". The intern demonstrated sincerity, discipline, adaptability, and a strong sense of responsibility while performing assigned tasks.`,
+        safeLeft,
+        doc.y,
+        { width: usableWidth, align: "center" }
       );
 
       doc.text(
-        `During the tenure with us, we found ${app.fullName}, sincere and result oriented.`,
-        50,
-        520,
-        { width: doc.page.width - 100 }
+        `Throughout the program, ${app.fullName} displayed a positive learning attitude, technical understanding, and the ability to work efficiently both independently and within a team environment.`,
+        safeLeft,
+        doc.y,
+        { width: usableWidth, align: "center" }
       );
+
+      // ✅ ONE LINE GAP AFTER "team environment."
+      doc.moveDown(1);
 
       doc.text(
-        `We wish ${app.fullName}, all the best for his/her future endeavors.`,
-        50,
-        560,
-        { width: doc.page.width - 100 }
+        `We appreciate the dedication and efforts shown and wish ${app.fullName} great success in all future academic and professional endeavors.`,
+        safeLeft,
+        doc.y,
+        { width: usableWidth, align: "center" }
       );
 
-      // ================= SIGNATURE SECTION =================
-      const signatureY = 630;
+      // ================= SIGNATURE =================
+      const signatureY = pageHeight - 240;
 
-      const randomNames = [
-        "Er. Rajesh Prasad",
-        "Er. Deepak Kumar"
-      ];
-      const randomName = randomNames[Math.floor(Math.random() * randomNames.length)];
+      doc.fontSize(12).text("Best Regards,", safeLeft, signatureY);
 
-      doc.fillColor(primaryColor).fontSize(12)
-        .text('Best Regards,', 50, signatureY);
-
-      // ✅ SIGNATURE IMAGE
       if (fs.existsSync(signatureImagePath)) {
-        doc.image(signatureImagePath, 50, signatureY + 15, {
-          width: 120
-        });
+        doc.image(signatureImagePath, safeLeft, signatureY + 20, { width: 130 });
       }
 
-      doc.fontSize(14).font('Helvetica-Bold')
-        .text(randomName, 50, signatureY + 45);
+      doc.fontSize(14).font("Helvetica-Bold")
+        .text("Er. Deepak Kumar", safeLeft, signatureY + 75);
 
-      doc.fontSize(12).font('Helvetica')
-        .text('CEO & Director', 50, signatureY + 65);
+      doc.fontSize(12)
+        .text("CEO & Director", safeLeft, signatureY + 95);
 
-      doc.text('(RID Bharat Bhopal)', 50, signatureY + 80);
-
-      // Signature line
-      doc.strokeColor('#000000').lineWidth(1)
-        .moveTo(50, signatureY + 35)
-        .lineTo(250, signatureY + 35)
-        .stroke();
-
-      // ✅ STAMP IMAGE (RIGHT SIDE)
-      if (fs.existsSync(stampImagePath)) {
-        doc.image(
-          stampImagePath,
-          doc.page.width - 190,
-          signatureY + 20,
-          { width: 100 }
-        );
-      }
-
-      doc.fillColor(secondaryColor).fontSize(10)
-        .text(
-          'Authorized Stamp & Signature',
-          doc.page.width - 200,
-          signatureY + 130,
-          { width: 150, align: 'center' }
-        );
+      doc.text("RID Bharat, Bhopal", safeLeft, signatureY + 110);
 
       // ================= FOOTER =================
-      doc.strokeColor('#cccccc').lineWidth(0.5)
-        .moveTo(50, doc.page.height - 80)
-        .lineTo(doc.page.width - 50, doc.page.height - 80)
-        .stroke();
+      const footerY = pageHeight - 100;
 
-      doc.fillColor(accentColor).fontSize(10).font('Helvetica-Bold')
-        .text('Digitally Signed & Approved', 0, doc.page.height - 70, { align: 'center' });
+      doc.moveTo(safeLeft, footerY).lineTo(safeRight, footerY).stroke();
 
-      doc.text(
-        'Research, Innovation & Discovery Bharat (RID Bharat)',
-        0,
-        doc.page.height - 55,
-        { align: 'center' }
-      );
-
-      doc.fillColor(secondaryColor).fontSize(9)
+      doc.fontSize(8).fillColor(secondaryColor)
         .text(
-          'Office Address: MiG–72, Sector A, Rajeev Nagar, Ayodhya Nagar, Bhopal, Madhya Pradesh 462021 (India)',
-          0,
-          doc.page.height - 30,
-          { align: 'center' }
+          "Office Address: MiG–72, Sector A, Rajeev Nagar, Ayodhya Nagar, Bhopal, Madhya Pradesh 462021 (India)",
+          safeLeft,
+          footerY + 10,
+          { width: usableWidth, align: "center", lineBreak: false }
         );
 
       doc.text(
-        'Contact: +91 98927 82728 | Email: supportid@gamil.com',
-        0,
-        doc.page.height - 15,
-        { align: 'center' }
+        "Contact: +91 98927 82728 | Email: supportid@gmail.com",
+        safeLeft,
+        footerY + 25,
+        { width: usableWidth, align: "center", lineBreak: false }
       );
+
+      // ================= STAMP =================
+      if (fs.existsSync(stampImagePath)) {
+        doc.image(stampImagePath, safeRight - 90, signatureY + 30, { width: 90 });
+      }
 
       doc.end();
 
       stream.on("finish", () => resolve(true));
       stream.on("error", reject);
+
     } catch (err) {
       reject(err);
     }
