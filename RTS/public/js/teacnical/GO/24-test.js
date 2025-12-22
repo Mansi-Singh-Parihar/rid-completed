@@ -1,4 +1,4 @@
-[
+const questions = [
     {
         "num": 1,
         "question_en": "What is the zero value for a string in Go?",
