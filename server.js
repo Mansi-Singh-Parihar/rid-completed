@@ -299,7 +299,6 @@ const configureRoutes = () => {
     res.sendFile(path.join(__dirname, "public", "index.html"));
   });
 
-
   app.get("/searchResult", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "searchResult.html"));
   });

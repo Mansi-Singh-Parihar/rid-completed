@@ -40,7 +40,7 @@ exports.applyCertificate = async (req, res) => {
   try {
     const { fullName, dob, phone, certificateType, duration, durationUnit, email } = req.body;
 
-    console.log("Received form data:", req.body);
+   
 
     // Validation
     if (!fullName || !dob || !phone || !certificateType || !duration || !durationUnit || !email) {
@@ -61,7 +61,7 @@ exports.applyCertificate = async (req, res) => {
 
     // Generate Application ID
     const appId = generateAppId(certificateType);
-    console.log("Generated App ID:", appId);
+    // console.log("Generated App ID:", appId);
 
     // Create application
     const application = new WorkshopApplication({

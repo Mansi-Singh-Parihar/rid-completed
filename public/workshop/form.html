@@ -639,7 +639,7 @@
         durationUnit: durationUnit
       };
 
-      console.log("Sending form data:", formData); // Debug log
+     
 
       try {
         // Send data to backend API
@@ -651,7 +651,7 @@
           body: JSON.stringify(formData)
         });
 
-        console.log("Response status:", response.status); // Debug log
+       
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -660,7 +660,7 @@
         }
 
         const result = await response.json();
-        console.log("Response result:", result); // Debug log
+        
 
         if (result.success) {
           // Show success message with App ID
